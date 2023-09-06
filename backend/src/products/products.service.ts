@@ -45,6 +45,7 @@ export class ProductsService {
             );
         }
 
+        let validObjs: { line: number; productId: number }[] = [];
         let errorObj: { column: number; line: number; err?: string }[] = [];
 
         for (let i = 1; i < results.length; i++) {
@@ -131,16 +132,86 @@ export class ProductsService {
                 continue;
             }
 
-            /*TODO: Estabeleceu-se a regra que, ao reajustar o preço de um pacote, o mesmo arquivo deve
-             * conter os reajustes dos preços dos componentes do pacote de modo que o preço final da
-             * soma dos componentes seja igual ao preço do pacote.
-             * O preço de custo dos pacotes também deve ser atualizado como a soma dos
-             * custos dos seus componentes
-             */
+            validObjs.push({ line: i, productId: productCode });
+        }
+
+        // Validação de packs e produtos
+        for (let i = 0; i < validObjs.length; i++) {
+            const product = await this.prisma.products.findFirst({
+                where: { code: validObjs[i].productId },
+                include: {
+                    packs_packs_pack_idToproducts: true, //produtos que fazem parte do pack
+                    packs_packs_product_idToproducts: true, //packs que tem o produto dentro
+                },
+            });
+
+            const productsInPack = product.packs_packs_pack_idToproducts;
+            const packsWithProduct = product.packs_packs_product_idToproducts;
+
+            // Considerando que se trata de um pack, valida se todos os produtos estão presentes
+            if (productsInPack.length > 0) {
+                let hasAllProductsInPack: boolean = true;
+                let missingProductsIds: string = "";
+
+                for (let j = 0; j < productsInPack.length; j++) {
+                    if (
+                        validObjs.find(
+                            (v) =>
+                                v.productId ===
+                                Number(productsInPack[j].product_id)
+                        ) == undefined
+                    ) {
+                        hasAllProductsInPack = false;
+                        missingProductsIds +=
+                            productsInPack[j].product_id.toString() + " ";
+                    }
+                }
+
+                if (!hasAllProductsInPack) {
+                    errorObj.push({
+                        column: 0,
+                        line: validObjs[i].line,
+                        err:
+                            "Pack de produtos incompleto, IDs de produto não presentes no arquivo: " +
+                            missingProductsIds,
+                    });
+                }
+            }
+
+            if (packsWithProduct.length > 0) {
+                let hasAllPacks: boolean = true;
+                let missingPacksIds: string = "";
+
+                for (let j = 0; j < packsWithProduct.length; j++) {
+                    if (
+                        validObjs.find(
+                            (v) =>
+                                v.productId ===
+                                Number(packsWithProduct[j].pack_id)
+                        ) == undefined
+                    ) {
+                        hasAllPacks = false;
+                        missingPacksIds +=
+                            packsWithProduct[j].pack_id.toString() + " ";
+                    }
+                }
+
+                if (!hasAllPacks) {
+                    errorObj.push({
+                        column: 0,
+                        line: validObjs[i].line,
+                        err:
+                            "O produto está presente em mais packs, IDs de pack não presentes no arquivo: " +
+                            missingPacksIds,
+                    });
+                }
+            }
         }
 
         if (errorObj.length > 0)
             throw new HttpException(errorObj, HttpStatus.UNPROCESSABLE_ENTITY);
+
+        //TODO: formatar resposta com todos os campos
 
         return results;
     }
