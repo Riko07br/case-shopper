@@ -1,12 +1,8 @@
-import {
-    BadRequestException,
-    HttpException,
-    HttpStatus,
-    Injectable,
-} from "@nestjs/common";
+import { HttpException, HttpStatus, Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { Readable } from "stream";
 import * as papa from "papaparse";
+import { ValidationErrorDto } from "./dto";
 
 @Injectable()
 export class ProductsService {
@@ -33,37 +29,33 @@ export class ProductsService {
     async validadeFile(results: Array<Array<string | number>>) {
         // validar campos (headers)
         if (results[0][0] != "product_code" || results[0][1] != "new_price") {
-            throw new HttpException(
-                [
-                    {
-                        column: 0,
-                        line: 0,
-                        err: "Cabeçalho inválido, utilize 'product_code' e 'new_price' respectivamente",
-                    },
-                ],
-                HttpStatus.UNPROCESSABLE_ENTITY
-            );
+            const ex: ValidationErrorDto[] = [
+                {
+                    cel: { col: 0, row: 0 },
+                    desc: "Cabeçalho inválido, utilize 'product_code' e 'new_price' respectivamente",
+                },
+            ];
+
+            throw new HttpException(ex, HttpStatus.UNPROCESSABLE_ENTITY);
         }
 
         let validObjs: { line: number; productId: number }[] = [];
-        let errorObj: { column: number; line: number; err?: string }[] = [];
+        let errorDtos: ValidationErrorDto[] = [];
 
         for (let i = 1; i < results.length; i++) {
             //caso o array nao esteja completo ou não tenha números
             if (results[i][0] == undefined || Number.isNaN(results[i][0])) {
-                errorObj.push({
-                    column: 0,
-                    line: i,
-                    err: "Código do produto não é um número válido",
+                errorDtos.push({
+                    cel: { col: 0, row: 1 },
+                    desc: "Código do produto não é um número válido",
                 });
                 continue;
             }
 
             if (results[i][1] == undefined || Number.isNaN(results[i][1])) {
-                errorObj.push({
-                    column: 1,
-                    line: i,
-                    err: "Preço do produto não é um número válido",
+                errorDtos.push({
+                    cel: { col: 1, row: i },
+                    desc: "Preço do produto não é um número válido",
                 });
                 continue;
             }
@@ -71,15 +63,12 @@ export class ProductsService {
             //o código precisa ser inteiro
             const productCode: number = Number(results[i][0]);
             if (!Number.isInteger(productCode)) {
-                errorObj.push({
-                    column: 0,
-                    line: i,
-                    err: "Código do produto precisa ser um número inteiro",
+                errorDtos.push({
+                    cel: { col: 0, row: i },
+                    desc: "Código do produto precisa ser um número inteiro",
                 });
                 continue;
             }
-
-            const newPrice: number = Number(results[i][1]);
 
             //procura no banco de dados
             const product = await this.prisma.products.findFirst({
@@ -88,21 +77,21 @@ export class ProductsService {
 
             //caso o produto não exista
             if (!product) {
-                errorObj.push({
-                    column: 0,
-                    line: i,
-                    err: "Produto inexistente",
+                errorDtos.push({
+                    cel: { col: 0, row: i },
+                    desc: "Produto inexistente",
                 });
                 continue;
             }
+
             //Impede preços de venda menores que o custo
             const dbCostPrice: number = product.cost_price.toNumber();
+            const newPrice: number = Number(results[i][1]);
 
             if (newPrice < dbCostPrice) {
-                errorObj.push({
-                    column: 1,
-                    line: i,
-                    err:
+                errorDtos.push({
+                    cel: { col: 1, row: i },
+                    desc:
                         "Preço de venda R$ " +
                         newPrice.toFixed(2) +
                         " menor que o custo R$ " +
@@ -118,10 +107,9 @@ export class ProductsService {
                 newPrice > dbSalesPrice * 1.1 ||
                 newPrice < dbSalesPrice * 0.9
             ) {
-                errorObj.push({
-                    column: 1,
-                    line: i,
-                    err:
+                errorDtos.push({
+                    cel: { col: 1, row: i },
+                    desc:
                         "Variação de preço maior que 10%, min: R$ " +
                         (dbSalesPrice * 0.9).toFixed(2) +
                         " max: R$ " +
@@ -155,11 +143,11 @@ export class ProductsService {
 
                 for (let j = 0; j < productsInPack.length; j++) {
                     if (
-                        validObjs.find(
+                        !validObjs.find(
                             (v) =>
                                 v.productId ===
                                 Number(productsInPack[j].product_id)
-                        ) == undefined
+                        )
                     ) {
                         hasAllProductsInPack = false;
                         missingProductsIds +=
@@ -168,10 +156,9 @@ export class ProductsService {
                 }
 
                 if (!hasAllProductsInPack) {
-                    errorObj.push({
-                        column: 0,
-                        line: validObjs[i].line,
-                        err:
+                    errorDtos.push({
+                        cel: { col: 0, row: validObjs[i].line },
+                        desc:
                             "Pack de produtos incompleto, IDs de produto não presentes no arquivo: " +
                             missingProductsIds,
                     });
@@ -184,11 +171,11 @@ export class ProductsService {
 
                 for (let j = 0; j < packsWithProduct.length; j++) {
                     if (
-                        validObjs.find(
+                        !validObjs.find(
                             (v) =>
                                 v.productId ===
                                 Number(packsWithProduct[j].pack_id)
-                        ) == undefined
+                        )
                     ) {
                         hasAllPacks = false;
                         missingPacksIds +=
@@ -197,10 +184,9 @@ export class ProductsService {
                 }
 
                 if (!hasAllPacks) {
-                    errorObj.push({
-                        column: 0,
-                        line: validObjs[i].line,
-                        err:
+                    errorDtos.push({
+                        cel: { col: 0, row: validObjs[i].line },
+                        desc:
                             "O produto está presente em mais packs, IDs de pack não presentes no arquivo: " +
                             missingPacksIds,
                     });
@@ -208,8 +194,8 @@ export class ProductsService {
             }
         }
 
-        if (errorObj.length > 0)
-            throw new HttpException(errorObj, HttpStatus.UNPROCESSABLE_ENTITY);
+        if (errorDtos.length > 0)
+            throw new HttpException(errorDtos, HttpStatus.UNPROCESSABLE_ENTITY);
 
         //TODO: formatar resposta com todos os campos
 
