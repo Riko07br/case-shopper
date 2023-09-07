@@ -5,9 +5,7 @@ import Products from "./Products";
 
 function App() {
     const [selectedFile, setSelectedFile] = useState<File>();
-    // usar state para salvar a resposta valida
-    //const [validProducts, setValidProducts] = useState([]);
-    //const [products, setProducts] = useState<boolean, []>(); //para salvar se valido ou nao
+    const [validProducts, setValidProducts] = useState<boolean>(false);
     const [products, setProducts] = useState([]);
 
     const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -26,12 +24,26 @@ function App() {
                 csv_file: selectedFile,
             })
             .then((response) => {
-                console.log(response);
                 setProducts(response.data);
+                setValidProducts(true);
+            })
+            .catch((error) => {
+                setProducts(error.response.data);
+                setValidProducts(false);
+            });
+    };
+
+    const handleUpdateClick = () => {
+        axios
+            .post(import.meta.env.VITE_API_URL + "update", products)
+            .then((response) => {
+                console.log(response);
+                setProducts([]);
+                setValidProducts(false);
             })
             .catch((error) => {
                 console.error(error.response.data);
-                setProducts(error.response.data);
+                setValidProducts(false);
             });
     };
 
@@ -41,7 +53,16 @@ function App() {
                 <input type="file" onChange={handleFileChange} />
 
                 <div>
-                    <button onClick={handleValidationClick}>Validar</button>
+                    <button
+                        onClick={handleValidationClick}
+                        disabled={!selectedFile}>
+                        Validar
+                    </button>
+                    <button
+                        onClick={handleUpdateClick}
+                        disabled={!(products?.length > 0) || !validProducts}>
+                        Atualizar
+                    </button>
                 </div>
             </div>
             <div>
