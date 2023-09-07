@@ -1,1 +1,1 @@
-export * from "./validation-error.dto";
+export * from "./product.dto";
