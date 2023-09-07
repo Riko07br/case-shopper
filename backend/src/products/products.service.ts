@@ -2,7 +2,7 @@ import { HttpException, HttpStatus, Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { Readable } from "stream";
 import * as papa from "papaparse";
-import { Product } from "./dto";
+import { ValidateProductDto, UpdateProductDto } from "./dto";
 
 @Injectable()
 export class ProductsService {
@@ -29,18 +29,18 @@ export class ProductsService {
     async validadeFile(results: Array<Array<string | number>>) {
         // validar campos (headers)
         if (results[0][0] != "product_code" || results[0][1] != "new_price") {
-            const exep: Product = {
+            const exep: ValidateProductDto = {
                 code: -1,
                 err: "Cabeçalho inválido, utilize 'product_code' e 'new_price' respectivamente",
             };
             throw new HttpException([exep], HttpStatus.UNPROCESSABLE_ENTITY);
         }
 
-        let response: Product[] = [];
+        let response: ValidateProductDto[] = [];
         let hasErrors: boolean = false;
 
         for (let i = 1; i < results.length; i++) {
-            let currentProduct: Product = new Product();
+            let currentProduct: ValidateProductDto = new ValidateProductDto();
             currentProduct.csvLine = i;
 
             //caso o array nao esteja completo ou não tenha números
@@ -201,5 +201,18 @@ export class ProductsService {
             throw new HttpException(response, HttpStatus.UNPROCESSABLE_ENTITY);
 
         return response;
+    }
+
+    async updateProducts(updateProductDtos: Array<UpdateProductDto>) {
+        for (let i = 0; i < updateProductDtos.length; i++) {
+            await this.prisma.products.update({
+                where: { code: updateProductDtos[i].code },
+                data: {
+                    sales_price: updateProductDtos[i].newPrice,
+                },
+            });
+        }
+
+        return HttpStatus.ACCEPTED;
     }
 }

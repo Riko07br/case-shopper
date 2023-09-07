@@ -1,11 +1,14 @@
 import {
+    Body,
     Controller,
     Post,
+    Req,
     UploadedFile,
     UseInterceptors,
 } from "@nestjs/common";
 import { ProductsService } from "./products.service";
 import { FileInterceptor } from "@nestjs/platform-express";
+import { UpdateProductDto } from "./dto";
 
 @Controller("products")
 export class ProductsController {
@@ -22,5 +25,11 @@ export class ProductsController {
         return await this.productsService.validadeFile(
             results as Array<Array<string | number>>
         );
+    }
+
+    // Atualiza os registros
+    @Post("update")
+    async updateProducts(@Body() dto: Array<UpdateProductDto>) {
+        return await this.productsService.updateProducts(dto);
     }
 }
