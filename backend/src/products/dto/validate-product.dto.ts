@@ -1,4 +1,4 @@
-export class Product {
+export class ValidateProductDto {
     code?: number = -1;
     name?: string = "";
     oldPrice?: number = 0;
