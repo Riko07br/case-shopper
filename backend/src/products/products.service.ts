@@ -142,56 +142,79 @@ export class ProductsService {
                 },
             });
 
-            const productsInPack = product.packs_packs_pack_idToproducts;
-            const packsWithProduct = product.packs_packs_product_idToproducts;
+            const productsInPack: Array<parsedPack> = this.parsePacks(
+                product.packs_packs_product_idToproducts
+            );
+            const packsWithProduct: Array<parsedPack> = this.parsePacks(
+                product.packs_packs_pack_idToproducts
+            );
 
-            // Considerando que se trata de um pack, valida se todos os produtos estão presentes
+            // Considerando que se trata de um pack, valida por meio dos PRODUTOS presentes------------
             if (productsInPack.length > 0) {
-                let hasAllProductsInPack: boolean = true;
-                let missingProductsIds: string = "";
+                let hasErrorProd: boolean = false;
+                let missingPacks: string = "";
 
                 for (let j = 0; j < productsInPack.length; j++) {
-                    if (
-                        !response.find(
-                            (v) =>
-                                v.code === Number(productsInPack[j].product_id)
-                        )
-                    ) {
-                        hasAllProductsInPack = false;
-                        missingProductsIds +=
-                            productsInPack[j].product_id.toString() + " ";
+                    const pack = productsInPack[j];
+
+                    const packFound = response.find(
+                        (v) => v.code == pack.pack_id
+                    );
+
+                    if (!packFound) {
+                        hasErrorProd = true;
+                        missingPacks += pack.pack_id.toString() + " ";
                     }
                 }
 
-                if (!hasAllProductsInPack) {
-                    response[i].err =
-                        "Pack de produtos incompleto, IDs de produto não presentes no arquivo: " +
-                        missingProductsIds;
+                // Caso não tenha todos os produtos do pack
+                if (hasErrorProd) {
+                    response[i].err +=
+                        "PACKS não presentes no arquivo: " + missingPacks;
                     hasErrors = true;
+                    continue;
                 }
             }
 
+            // Considerando que se trata de um pack, valida por meio dos PACKS presentes=================
             if (packsWithProduct.length > 0) {
-                let hasAllPacks: boolean = true;
-                let missingPacksIds: string = "";
+                let hasErrorPack: boolean = false;
+                let missingProds: string = "";
+                let prodTotal: number = 0;
 
                 for (let j = 0; j < packsWithProduct.length; j++) {
-                    if (
-                        !response.find(
-                            (v) =>
-                                v.code === Number(packsWithProduct[j].pack_id)
-                        )
-                    ) {
-                        hasAllPacks = false;
-                        missingPacksIds +=
-                            packsWithProduct[j].pack_id.toString() + " ";
+                    const pack = packsWithProduct[j];
+
+                    const productFound = response.find(
+                        (v) => v.code == pack.product_id
+                    );
+
+                    if (!productFound) {
+                        hasErrorPack = true;
+                        missingProds += pack.product_id.toString() + " ";
+                        continue;
                     }
+
+                    prodTotal += productFound.newPrice * pack.qty;
                 }
 
-                if (!hasAllPacks) {
+                if (hasErrorPack) {
                     response[i].err =
-                        "O produto está presente em mais packs, IDs de pack não presentes no arquivo: " +
-                        missingPacksIds;
+                        "PRODUTOS não presentes no arquivo: " + missingProds;
+                    hasErrors = true;
+                    continue;
+                }
+
+                const packTotal = response.find(
+                    (p) => packsWithProduct[0].pack_id == p.code
+                );
+
+                if (!this.isEqual(prodTotal, packTotal.newPrice)) {
+                    response[i].err =
+                        "Soma pack: " +
+                        this.parseToPrice(prodTotal) +
+                        " Valor no arquivo: " +
+                        this.parseToPrice(packTotal.newPrice);
                     hasErrors = true;
                 }
             }
@@ -215,4 +238,34 @@ export class ProductsService {
 
         return HttpStatus.ACCEPTED;
     }
+
+    // Converte os packs do prisma em objecto utilizavel
+    parsePacks(prismaPack: Array<any>): Array<parsedPack> {
+        let parsed: parsedPack[] = [];
+
+        for (let i = 0; i < prismaPack.length; i++) {
+            const el = prismaPack[i];
+            parsed.push({
+                id: Number(el.id),
+                pack_id: Number(el.pack_id),
+                product_id: Number(el.product_id),
+                qty: Number(el.qty),
+            });
+        }
+        return parsed;
+    }
+
+    parseToPrice(val: number): string {
+        return "R$ " + val.toFixed(2);
+    }
+    isEqual(val1: number, val2: number): boolean {
+        return Math.abs(val1 - val2) < 0.001;
+    }
+}
+
+interface parsedPack {
+    id: number;
+    pack_id: number;
+    product_id: number;
+    qty: number;
 }
