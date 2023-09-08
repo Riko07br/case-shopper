@@ -1,7 +1,6 @@
 import { ChangeEvent, useState } from "react";
 import axios from "axios";
 import Products from "./Products";
-//import "./App.css";
 
 function App() {
     const [selectedFile, setSelectedFile] = useState<File>();
@@ -11,6 +10,8 @@ function App() {
     const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
             setSelectedFile(e.target.files[0]);
+            setProducts([]);
+            setValidProducts(false);
         }
     };
 
@@ -49,9 +50,22 @@ function App() {
 
     return (
         <>
+            <header>
+                <h1>Validador</h1>
+            </header>
             <div>
+                <div>
+                    <p>
+                        Validador de arquivos <strong>.CSV</strong> desenvolvido
+                        para solução de um case
+                    </p>
+                    <p>
+                        O frontend foi desenvolvido utilizando{" "}
+                        <strong>React+Vite</strong> e o backend com{" "}
+                        <strong>NestJs</strong>, que é um framework de NodeJs.
+                    </p>
+                </div>
                 <input type="file" onChange={handleFileChange} />
-
                 <div>
                     <button
                         onClick={handleValidationClick}
@@ -68,11 +82,11 @@ function App() {
             <div>
                 <table>
                     <tr>
-                        <td>ID do produto</td>
-                        <td>Nome</td>
-                        <td>Preço atual</td>
-                        <td>Novo Preço</td>
-                        <td>Erros</td>
+                        <th>ID do produto</th>
+                        <th className="productName">Nome</th>
+                        <th>Preço atual</th>
+                        <th>Novo Preço</th>
+                        <th className="productError">Erros</th>
                     </tr>
                     {products?.length > 0 ? (
                         products.map((p) => <Products product={p} />)
