@@ -18,8 +18,14 @@ export class ProductsController {
     @Post("upload")
     @UseInterceptors(FileInterceptor("csv_file"))
     async uploadFile(@UploadedFile() file: Express.Multer.File) {
-        // Realiza o parse do CSV
-        const results = await this.productsService.uploadFile(file);
+        let results;
+
+        try {
+            // Realiza o parse do CSV
+            results = await this.productsService.uploadFile(file);
+        } catch (err) {
+            return this.productsService.throwError(err);
+        }
 
         // Faz a validacao dos dados
         return await this.productsService.validadeFile(

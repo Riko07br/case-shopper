@@ -20,19 +20,25 @@ export class ProductsService {
                     resolve(results.data);
                 },
                 error(err) {
-                    reject(err);
+                    reject(err.message);
                 },
             });
         });
     }
 
+    throwError(message: string) {
+        const exep: ValidateProductDto = new ValidateProductDto();
+        exep.err = message;
+        throw new HttpException([exep], HttpStatus.UNPROCESSABLE_ENTITY);
+    }
+
     async validadeFile(results: Array<Array<string | number>>) {
         // validar campos (headers)
         if (results[0][0] != "product_code" || results[0][1] != "new_price") {
-            const exep: ValidateProductDto = {
-                code: -1,
-                err: "Cabeçalho inválido, utilize 'product_code' e 'new_price' respectivamente",
-            };
+            const exep: ValidateProductDto = new ValidateProductDto();
+            (exep.err =
+                "Cabeçalho inválido, utilize 'product_code' e 'new_price' respectivamente"),
+                console.log("error");
             throw new HttpException([exep], HttpStatus.UNPROCESSABLE_ENTITY);
         }
 
@@ -60,8 +66,7 @@ export class ProductsService {
                 continue;
             }
 
-            const newPrice: number = Number(results[i][1]);
-            currentProduct.newPrice = newPrice;
+            currentProduct.newPrice = Number(results[i][1]);
 
             //o código precisa ser inteiro
             const productCode: number = Number(results[i][0]);
@@ -90,18 +95,16 @@ export class ProductsService {
                 continue;
             }
 
-            const dbCostPrice: number = product.cost_price.toNumber();
-            const dbSalesPrice: number = product.sales_price.toNumber();
-            currentProduct.oldPrice = dbSalesPrice;
+            currentProduct.oldPrice = product.sales_price.toNumber();
             currentProduct.name = product.name;
 
             //Impede preços de venda menores que o custo
-            if (newPrice < dbCostPrice) {
+            if (currentProduct.newPrice < currentProduct.oldPrice) {
                 currentProduct.err =
-                    "Preço de venda R$ " +
-                    newPrice.toFixed(2) +
+                    "Preço de venda " +
+                    this.parseToPrice(currentProduct.newPrice) +
                     " menor que o custo R$ " +
-                    dbCostPrice.toFixed(2);
+                    this.parseToPrice(currentProduct.oldPrice);
                 hasErrors = true;
 
                 response.push(currentProduct);
@@ -110,16 +113,16 @@ export class ProductsService {
 
             //Impede variações maiores que 10% do valor salvo
             if (
-                newPrice > dbSalesPrice * 1.1 ||
-                newPrice < dbSalesPrice * 0.9
+                currentProduct.newPrice > currentProduct.oldPrice * 1.1 ||
+                currentProduct.newPrice < currentProduct.oldPrice * 0.9
             ) {
                 currentProduct.err =
-                    "Variação de preço maior que 10%, min: R$ " +
-                    (dbSalesPrice * 0.9).toFixed(2) +
-                    " max: R$ " +
-                    (dbSalesPrice * 1.1).toFixed(2) +
+                    "Variação de preço maior que 10%, min: " +
+                    this.parseToPrice(currentProduct.oldPrice * 0.9) +
+                    " max: " +
+                    this.parseToPrice(currentProduct.oldPrice * 1.1) +
                     " utilizado: R$ " +
-                    newPrice.toFixed(2);
+                    currentProduct.newPrice.toFixed(2);
                 hasErrors = true;
 
                 response.push(currentProduct);
@@ -240,7 +243,7 @@ export class ProductsService {
     }
 
     // Converte os packs do prisma em objecto utilizavel
-    parsePacks(prismaPack: Array<any>): Array<parsedPack> {
+    private parsePacks(prismaPack: Array<any>): Array<parsedPack> {
         let parsed: parsedPack[] = [];
 
         for (let i = 0; i < prismaPack.length; i++) {
@@ -255,10 +258,11 @@ export class ProductsService {
         return parsed;
     }
 
-    parseToPrice(val: number): string {
+    private parseToPrice(val: number): string {
         return "R$ " + val.toFixed(2);
     }
-    isEqual(val1: number, val2: number): boolean {
+
+    private isEqual(val1: number, val2: number): boolean {
         return Math.abs(val1 - val2) < 0.001;
     }
 }
